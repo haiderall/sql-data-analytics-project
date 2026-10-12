@@ -1,10 +1,35 @@
-use `DataWareHouseAnalytics`;
+/*
+===============================================================================
+Advanced Data Analysis - MySQL 8.0
+===============================================================================
+Script Purpose:
+    Builds on the exploratory analysis with window functions, CTEs and
+    aggregations to analyse trends, performance and customer/product behaviour,
+    and packages the results into reusable report views.
 
--- 1. Change Over Time Analysis
+Database:
+    DataWareHouseAnalytics:
+	gold_dim_customers, gold_dim_products, gold_fact_sales
+
+Contents:
+	Tracks sales, customers and quantity by month and year to spot trends and seasonality
+	Running totals and moving averages of sales over time
+	Year-over-year and versus-average comparisons for products
+	Groups products by cost range and customers by spending and lifespan (VIP/Regular/New)
+	Shows each category's share of total sales
+
+===============================================================================
+1. Change Over Time Analysis
+===============================================================================
+Purpose:
+    - To track trends, growth, and changes in key metrics over time.
+    - For time-series analysis and identifying seasonality.
+    - To measure growth or decline over specific periods.
+*/
 
 -- Analyse sales performance over days
 -- Quick Date Functions
-
+use `DataWareHouseAnalytics`;
 select
 order_date,
 sum(sales_amount) as total_sales
@@ -26,8 +51,15 @@ order by DATE_FORMAT(order_date, '%Y-%m');
 
 -- can also use format for custom date format dmy
 
-
--- 2. Cumulative Analysis
+/*
+===============================================================================
+2. Cumulative Analysis
+===============================================================================
+Purpose:
+    - To calculate running totals or moving averages for key metrics.
+    - To track performance over time cumulatively.
+    - Useful for growth analysis or identifying long-term trends.
+*/
 
 -- Calculate the total sales per month 
 -- and the running total of sales over time and moving avg price
@@ -47,7 +79,16 @@ from
 	group by DATE_FORMAT(order_date, '%Y-%m-01') 
 )t;
 
--- 3. Performance Analysis (Year-over-Year, Month-over-Month)
+/*
+===============================================================================
+3. Performance Analysis (Year-over-Year, Month-over-Month)
+===============================================================================
+Purpose:
+    - To measure the performance of products, customers, or regions over time.
+    - For benchmarking and identifying high-performing entities.
+    - To track yearly trends and growth.
+*/
+
 /*
 Analyze the yearly performance of products by comparing their sales 
 to both the average sales performance of the product and the previous year's sales */
@@ -83,8 +124,16 @@ case when current_sales - lag(current_sales) over (partition by product_name ord
 end py_change
 from yearly_product_sales;
 
+/*
+===============================================================================
+4. Part-to-Whole Analysis
+===============================================================================
+Purpose:
+    - To compare performance or metrics across dimensions or time periods.
+    - To evaluate differences between categories.
+    - Useful for A/B testing or regional comparisons.
+*/
 
--- 4. Part-to-Whole Analysis
 -- Which categories contribute the most to overall sales?
 
 with category_sales as (
@@ -103,8 +152,15 @@ sum(total_sales) over() overall_sales,
 concat(round((total_sales/sum(total_sales) over()) * 100, 2), '%') as contrib_to_sales
 from category_sales;
 
+/*
+===============================================================================
+5. Data Segmentation Analysis
+===============================================================================
+Purpose:
+    - To group data into meaningful categories for targeted insights.
+    - For customer segmentation, product categorization, or regional analysis.
+*/
 
- -- 5. Data Segmentation Analysis (Case when)
 /*Segment products into cost ranges and 
 count how many products fall into each segment*/
 
@@ -160,107 +216,6 @@ from (
 	from customer_spending) t
 group by cust_segment
 order by total_cust desc;
-
-
-/*
-===============================================================================
-Customer Report
-===============================================================================
-Purpose:
-    - This report consolidates key customer metrics and behaviors
-
-Highlights:
-    1. Gathers essential fields such as names, ages, and transaction details.
-	2. Segments customers into categories (VIP, Regular, New) and age groups.
-    3. Aggregates customer-level metrics:
-	   - total orders
-	   - total sales
-	   - total quantity purchased
-	   - total products
-	   - lifespan (in months)
-    4. Calculates valuable KPIs:
-	    - recency (months since last order)
-		- average order value
-		- average monthly spend
-=============================================================================== */
--- =============================================================================
--- Create Report: gold.report_products
--- =============================================================================
-create view gold_report_customers as
-with base_query as (
-/*---------------------------------------------------------------------------
-1) Base Query: Retrieves core columns from tables
----------------------------------------------------------------------------*/
-select
-f.order_number,
-f.product_key,
-f.order_date,
-f.sales_amount,
-f.quantity,
-c.customer_key,
-c.customer_number,
-concat(first_name, ' ', last_name) cust_name,
-TIMESTAMPDIFF(year, c.birthdate, curdate()) age
-from gold_fact_sales f
-left join gold_dim_customers c
-on c.customer_key = f.customer_key
-where order_date is not null)
-
-, cust_aggregation as (
-/*---------------------------------------------------------------------------
-2) Customer Aggregations: Summarizes key metrics at the customer level
----------------------------------------------------------------------------*/
-select
-	customer_key,
-	customer_number,
-	cust_name,
-	age,
-	count(distinct order_number) total_orders,
-	sum(sales_amount) total_sales,
-	sum(quantity) total_quantity_purchased,
-	count(distinct product_key) total_products,
-	max(order_date) last_order_date,
-	TIMESTAMPDIFF(MONTH, MIN(order_date), MAX(order_date)) lifespan
-from base_query
-	group by 
-	customer_key,
-	customer_number,
-	cust_name,
-	age)
-    
-select 
-customer_key,
-customer_number,
-cust_name,
-age,
-case when age < 20 then 'Under 20'
-	 when age between 20 and 29 then '20-29'
-     when age between 30 and 39 then '30-39'
-     when age between 40 and 49 then '40-49'
-	 else '50 and Above'
-end age_group,
-case when lifespan >= 12 and total_sales > 5000 then 'VIP'
-	 when lifespan >= 12 and total_sales <= 5000 then 'Regular'
-	 else 'New'
-end cust_segment,
-total_orders,
-last_order_date,
-TIMESTAMPDIFF(MONTH, last_order_date, curdate()) recency,
-total_sales,
-total_quantity_purchased,
-total_products,
-lifespan,
--- Compute average order value (AVO)
-case when total_sales = 0 then 0
-else round(total_sales/total_orders, 2)
-end avg_order_value,
--- Compute average monthly spend
-case when lifespan = 0 then total_sales
-else round(total_sales/lifespan, 2)
-end avg_monthly_spend
-from cust_aggregation;
-
-
 /*
 ===============================================================================
 Product Report
