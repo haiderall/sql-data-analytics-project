@@ -1,23 +1,74 @@
+/*
+===============================================================================
+Exploratory Data Analysis (EDA) - MySQL 8.0
+===============================================================================
+Script Purpose:
+    Profiles the gold layer of the data warehouse to understand its structure,
+    contents, and shape before deeper analysis. It answers "what do we have,
+    and what does it look like?" for the customers, products and sales data.
+
+Database:
+    DataWareHouseAnalytics (snapshot of DataWareHouse gold views as tables):
+    gold_dim_customers, gold_dim_products, gold_fact_sales
+
+Contents:
+	Creates the analytics database and copies the gold views into tables
+    Lists tables and columns (information_schema)
+    Explores distinct values in dimension columns (country, category, subcategory, product)
+    Finds first/last order dates, time span covered, and customer age range
+    Computes key totals and averages (sales, quantity, price, orders) in one report
+    Compares measures across dimensions (e.g. sales by country, revenue by category)
+    Ranks best and worst performers (top/bottom products and customers)
+
+Notes:
+    - Run the files in numeric order
+=============================================================
+0. Create Database
+=============================================================
+Purpose:
+    This script creates a new database named 'DataWarehouseAnalytics' after checking if it already exists. 
+    If the database exists, it is dropped and recreated. Additionally, this script creates a table called gold
+*/
+
 CREATE DATABASE IF NOT EXISTS DataWareHouseAnalytics;
 
 CREATE TABLE DataWareHouseAnalytics.gold_fact_sales AS
 SELECT * FROM DataWareHouse.gold_fact_sales;   -- schema.view
 use DataWareHouseAnalytics;
 
--- 1. database_exploration
+/*
+===============================================================================
+1. Database Exploration
+===============================================================================
+Purpose:
+    - To explore the structure of the database, including the list of tables and their schemas.
+    - To inspect the columns and metadata for specific tables.
+*/
+
 SHOW COLUMNS FROM DataWareHouseAnalytics.gold_dim_customers;
 SHOW COLUMNS FROM DataWareHouseAnalytics.gold_dim_products;
 SHOW COLUMNS FROM DataWareHouseAnalytics.gold_fact_sales;
 
--- 2. dimensions_exploration
+/*
+===============================================================================
+2. Dimensions Exploration
+===============================================================================
+Purpose:
+    - To explore the structure of dimension tables.
+*/
 
 select distinct country from gold_dim_customers;
-
 select distinct category, subcategory, product_name from gold_dim_products
 order by 1,2,3;
 
--- 3. date_range_exploration
-
+/*
+===============================================================================
+3. Date Range Exploration 
+===============================================================================
+Purpose:
+    - To determine the temporal boundaries of key data points.
+    - To understand the range of historical data.
+*/
 -- Date of first and last order
 -- How many years of sales are available?
 select min(order_date) as first_order,
@@ -32,10 +83,14 @@ select min(birthdate) as oldest_birthdate,
        TIMESTAMPDIFF(year, max(birthdate), curdate()) as youngest_customer
 from gold_dim_customers;
 
--- ---------------------------------------------------------------------------------------------
-
--- 4. measures_exploration
-
+/*
+===============================================================================
+4. Measures Exploration (Key Metrics)
+===============================================================================
+Purpose:
+    - To calculate aggregated metrics (e.g., totals, averages) for quick insights.
+    - To identify overall trends or spot anomalies.
+*/
 -- Find the Total Sales
 select sum(sales_amount) as total_sales from gold_fact_sales;
 
@@ -73,10 +128,14 @@ select 'Total Products', count(product_key) from gold_dim_products
 UNION ALL
 select 'Total Customers', count(distinct customer_key) from gold_dim_customers;
 
--- ---------------------------------------------------------------------------------------------
-
--- 5. magnitude_analysis
-
+/*
+===============================================================================
+5. Magnitude Analysis
+===============================================================================
+Purpose:
+    - To quantify data and group results by specific dimensions.
+    - For understanding data distribution across categories.
+*/
 -- Find total customers by countries
 select
 country,
@@ -142,8 +201,14 @@ on f.customer_key = c.customer_key
 group by c.country
 order by total_items_sold desc;
 
--- 6. ranking_analysis
-
+/*
+===============================================================================
+6. Ranking Analysis
+===============================================================================
+Purpose:
+    - To rank items (e.g., products, customers) based on performance or other metrics.
+    - To identify top performers or laggards.
+*/
 -- Which 5 products Generating the Highest Revenue?
 select * from(
 	select
