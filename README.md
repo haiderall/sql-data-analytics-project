@@ -5,6 +5,7 @@ A comprehensive collection of SQL scripts for data exploration, analytics, and r
 
 ## ☕ Stay Connected
 Let's stay in touch! Feel free to connect with me:
+
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.com/in/)
 
 
